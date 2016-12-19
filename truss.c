@@ -286,23 +286,7 @@ int truss2(const igraph_t *graph, igraph_vector_t *truss) {
     return 0;
 }
 
-/*int support(){
-for(i=0;i<no_of_edges;i++)
-    {
-    igraph_vector_int_init(&result,0);
-   
-    v=IGRAPH_FROM(graph,i);
-    u=IGRAPH_TO(graph,i);
-   
-    neis1=igraph_adjlist_get(&al,v);
-    neis2=igraph_adjlist_get(&al,u);
-    igraph_vector_int_intersect_sorted(neis1,neis2,&result);
-    
-    VECTOR(edges)[i]=i;
-    MATRIX(edge_sup,i,0)=i;  
-    MATRIX(edge_sup,i,1)=igraph_vector_int_size(&result);}
 
-}*/
 
 int lower_bounding(const igraph_t *graph,igraph_vector_t *lowerbound,int no_of_edges,igraph_t *gnew){
   Rprintf("I am lower bound\n");
@@ -440,7 +424,7 @@ int lower_bounding(const igraph_t *graph,igraph_vector_t *lowerbound,int no_of_e
   
   Rprintf("\n%li %li\n",igraph_vector_size(&eid2),igraph_vector_size(&eid3)); 
   igraph_create(graph,&eid2,0,FALSE);//meh
-  no_of_edges=
+  //no_of_edges=
   
   }//while
 
