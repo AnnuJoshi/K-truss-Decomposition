@@ -55,6 +55,7 @@
 #include <string.h>   /* memset */
 #include <stdio.h>
 #include <time.h>
+#include <R.h>
 /**
  * \function igraph_trussness 
  * \brief Finding the trussness of the edges in a network.
@@ -77,7 +78,6 @@
  *
  * Time complexity: O(|E|^1.5), the number of edges.
  */
-
 int binsort(igraph_matrix_t *arr,igraph_vector_t * edges,igraph_vector_t* sindex,long int h,long int max)
  {
  long int tmpsize,i,j,ind=0;
@@ -120,8 +120,9 @@ int binsort(igraph_matrix_t *arr,igraph_vector_t * edges,igraph_vector_t* sindex
  return 0;
  }
 
-int igraph_trussness(const igraph_t *graph, igraph_vector_t *truss) {
+int truss2(const igraph_t *graph, igraph_vector_t *truss) {
 
+ Rprintf("Calculating truss\n");
  long int no_of_edges=igraph_ecount(graph);
  igraph_integer_t u,v,eid1,eid2,temp,nsize;
  igraph_vector_int_t *neis1,*neis2,result,*w;
@@ -258,6 +259,7 @@ int igraph_trussness(const igraph_t *graph, igraph_vector_t *truss) {
        
           }
          }
+        
       
        VECTOR((*truss))[eid]=k;
        deleted[eid]=1;counter++;
@@ -279,6 +281,192 @@ int igraph_trussness(const igraph_t *graph, igraph_vector_t *truss) {
  IGRAPH_FINALLY_CLEAN(4);    
 
  igraph_free(deleted);
- IGRAPH_FINALLY_CLEAN(1);    
+ IGRAPH_FINALLY_CLEAN(1);
+ Rprintf("truss done\n");
+    return 0;
+}
+
+/*int support(){
+for(i=0;i<no_of_edges;i++)
+    {
+    igraph_vector_int_init(&result,0);
+   
+    v=IGRAPH_FROM(graph,i);
+    u=IGRAPH_TO(graph,i);
+   
+    neis1=igraph_adjlist_get(&al,v);
+    neis2=igraph_adjlist_get(&al,u);
+    igraph_vector_int_intersect_sorted(neis1,neis2,&result);
+    
+    VECTOR(edges)[i]=i;
+    MATRIX(edge_sup,i,0)=i;  
+    MATRIX(edge_sup,i,1)=igraph_vector_int_size(&result);}
+
+}*/
+
+int lower_bounding(const igraph_t *graph,igraph_vector_t *lowerbound,int no_of_edges,igraph_t *gnew){
+  Rprintf("I am lower bound\n");
+  
+  igraph_vit_t vit1,vit2,vit3,vit4;
+  igraph_vs_t vs1;
+  igraph_es_t es1;
+   igraph_eit_t eit1,eit2;
+  
+  //igraph_es_all(&es1,IGRAPH_EDGEORDER_ID);
+
+ igraph_vector_t edges,truss,tmp,eids;
+ 
+
+ igraph_vector_t eid,eid2,eid3; //making neighborhood graph
+ igraph_vector_init(&eid,0);
+ 
+
+ //igraph_vector_ptr_t graph_neighborhood;
+ //igraph_vector_ptr_init(&graph_neighborhood,no_of_nodes);
+ igraph_integer_t u,v,prev,e_id;
+   
+  igraph_t induced;
+  int flag=1;
+   igraph_vector_init(&eid3,0);
+
+  while(flag){
+
+  long int no_of_nodes=igraph_vcount(graph); //no-of-nodes
+  int size1=no_of_nodes/2,size2,count=1;
+  if(size1)
+     {
+      size2=no_of_nodes-size1;
+      count=2;
+  }
+  int from=0,to=size1;
+
+ igraph_vector_init(&edges,no_of_edges); //for deleting edges of argument graph update no-of-edges
+ igraph_vector_null(&edges);
+ igraph_vector_init(lowerbound,no_of_edges);
+ igraph_vector_null(lowerbound);
+ igraph_vector_init(&eids,no_of_edges);
+ 
+ igraph_vector_init(&truss,no_of_edges);
+ igraph_vector_init(&tmp,no_of_edges);
+ 
+ igraph_vector_init(&eid2,0);
+
+  for(int i=0;i<count;i++){
+   igraph_vs_seq(&vs1,from,to-1);
+   //Rprintf("From is %d To is %d\n",from,to);
+   
+   igraph_vit_create(graph,vs1,&vit1);//vit's address
+   //igraph_induced_subgraph(graph,&induced,vs1,IGRAPH_SUBGRAPH_CREATE_FROM_SCRATCH); 
+   //igraph_eit_create(&induced,es1, &eit1); //for induced
+    
+   long int iter=0;
+   while(!IGRAPH_VIT_END(vit1)){
+       igraph_neighbors(graph,&tmp,(long int) IGRAPH_VIT_GET(vit1),IGRAPH_ALL);
+      for(long int s=0;s<igraph_vector_size(&tmp);s++)
+      {
+       Rprintf("neighbors of %li %li",(long int) IGRAPH_VIT_GET(vit1),(long int)VECTOR(tmp)[s]);
+       if(iter>=1 && ((long int)VECTOR(tmp)[s]==prev)){
+	  igraph_get_eid(graph,&e_id,prev,(long int) IGRAPH_VIT_GET(vit1),FALSE, TRUE);
+          Rprintf("eid %d\n",e_id);
+          VECTOR(edges)[e_id]=1;  
+          	
+   	} //to not repeat edges already traversed
+       else{
+       igraph_vector_push_back (&eid,(long int)IGRAPH_VIT_GET(vit1));
+       igraph_vector_push_back (&eid,(long int)VECTOR(tmp)[s]);
+       }
+      }   
+      prev=(long int)IGRAPH_VIT_GET(vit1);
+      IGRAPH_VIT_NEXT(vit1);
+      iter++;
+      igraph_vector_clear (&tmp);   
+      Rprintf("\n"); 
+    } 
+
+    igraph_get_eids(graph,&eids,&eid,NULL,FALSE,FALSE);
+    
+  
+  igraph_t g1; 
+  igraph_create(&g1,&eid,0,FALSE);    
+   
+   
+        /*for(long int s=0;s<igraph_ecount(&g1);s++)
+         {
+    
+           v=IGRAPH_FROM(&g1,s);
+           u=IGRAPH_TO(&g1,s);
+           Rprintf("%li %li %li\n",(long int)v,(long int)u,(long int)VECTOR(eids)[s]);
+         }*/
+     
+     truss2(&g1,&truss);
+        
+     for(long int j=0;j< igraph_vector_size(&truss);j++)
+       {
+         if((long int)VECTOR(truss)[j]>VECTOR(*lowerbound)[(long int)VECTOR(eids)[j]])
+         VECTOR(*lowerbound)[(long int)VECTOR(eids)[j]]=(long int)VECTOR(truss)[j];
+
+         if(VECTOR(*lowerbound)[(long int)VECTOR(eids)[j]]==2 && VECTOR(edges)[(long int)VECTOR(eids)[j]])
+         VECTOR(edges)[(long int)VECTOR(eids)[j]]=1;
+
+         Rprintf("%li",(long int)VECTOR(truss)[j]);
+        }
+    
+    
+    igraph_vector_clear (&eid);
+    
+   
+   from+=size1;
+   to+=size2;   
+  }//for main
+  
+ 
+   
+  for(long int i=0;i< igraph_vector_size(&edges);i++){
+   igraph_edge(graph,i,&u, &v);
+   if(VECTOR(edges)[i])
+     {
+       igraph_vector_push_back (&eid3,u);
+       igraph_vector_push_back (&eid3,v); 
+     }
+    else{
+        igraph_vector_push_back (&eid2,u); //for new graph
+       igraph_vector_push_back (&eid2,v); 
+      }
+    Rprintf("%li %li\n",i,(long int)VECTOR(edges)[i]); 
+   }
+
+  //if(igraph_vector_size(&eid2)==0)
+    flag=0;
+  
+  Rprintf("\n%li %li\n",igraph_vector_size(&eid2),igraph_vector_size(&eid3)); 
+  igraph_create(graph,&eid2,0,FALSE);//meh
+  no_of_edges=
+  
+  }//while
+
+  igraph_create(gnew,&eid3,0,FALSE);
+  return 0;   
+}//lower
+
+
+
+int bottom_up_truss(const igraph_t *graph){
+  Rprintf("hi bottom_up\n");
+  long int no_of_edges=igraph_ecount(graph);
+  igraph_vector_t lowerbound;
+  igraph_t gnew;
+  igraph_vector_init(&lowerbound,no_of_edges);
+  lower_bounding(graph,&lowerbound,no_of_edges,&gnew);
+  //lower_bounding(graph,&lowerbound,no_of_edges);
+}
+
+
+
+
+int igraph_trussness(const igraph_t *graph, igraph_vector_t *truss) {
+
+  Rprintf("Hello truss\n");
+ 
+ bottom_up_truss(graph);
     return 0;
 }
