@@ -279,9 +279,10 @@ int truss2(const igraph_t *graph, igraph_vector_t *truss) {
  igraph_vector_destroy(&sindex);
  igraph_vector_int_destroy(&result);
  IGRAPH_FINALLY_CLEAN(4);    
- igraph_destroy(graph);
+
  igraph_free(deleted);
  IGRAPH_FINALLY_CLEAN(1);
+ //Rprintf("truss done\n");
     return 0;
 }
 
@@ -293,35 +294,31 @@ int dominating_set(const igraph_t *graph,igraph_vector_t *d_set){
   igraph_vector_init(d_set,0);
   igraph_vector_t edges;
   igraph_vector_init(&edges,0); 
-  igraph_vector_int_t *neis;
   igraph_vector_init(&bit_array,no_of_vertices); //for deleting edges of argument graph update no-of-edges
   igraph_vector_null(&bit_array);
-  igraph_adjlist_t a;
-  igraph_adjlist_t *al=&a;
-
-  igraph_adjlist_init(graph,al,IGRAPH_ALL);
   
-  long int n;
+  igraph_vs_t vs1;
+  //igraph_adjlist_t al;
+  //igraph_adjlist_init(graph,&al,IGRAPH_ALL);
+  
   for(long int i=0;i<no_of_vertices;i++){
   
   if(VECTOR(bit_array)[i]==0){
-   
-   
-   neis=igraph_adjlist_get(&a,i);
-   n=igraph_vector_int_size(neis);
    VECTOR(bit_array)[i]=1;
-   
-    if(n){ 
+   IGRAPH_CHECK(igraph_neighbors(graph, &edges,i, IGRAPH_ALL));
+   int n=igraph_vector_size(&edges);
+    if(n) 
+    {   
    igraph_vector_push_back (d_set,i);
-   for(long int k=0;k<n;k++)
-      VECTOR(bit_array)[VECTOR(*neis)[k]]=1;
-      
-     }
+   for(int k=0;k<n;k++)
+      VECTOR(bit_array)[(long int)VECTOR(edges)[k]]=1; 
    }
-  }//for
-  
-  igraph_adjlist_destroy(al);
+
+   }
    
+  }
+  
+
 
 }
 
@@ -350,33 +347,33 @@ int lower_bounding(igraph_t *graph,igraph_vector_t *lowerbound,igraph_t *gnew){
     igraph_vector_push_back (&map,i);
   }
  igraph_vector_t extra,extra1;                   //hash to check internal edges
- long int num;
- igraph_vector_int_t *neis;
-
+ igraph_vector_ptr_t v1;
+ 
  while(flag){
 
   long int no_of_nodes=igraph_vcount(graph); //no-of-nodes
+  long int no_of_edges=igraph_ecount(graph);
+
   igraph_vector_clear (&dset);
   
   dominating_set(graph,&dset);
+  
+  //IGRAPH_CHECK(igraph_vector_ptr_init(&v, igraph_vector_size(&dset)));
+  
+  
+  
   igraph_vector_init(&extra,no_of_nodes);
   igraph_vector_init(&extra2,no_of_nodes);
   igraph_vector_init(&extra1,0); 
   igraph_vector_null(&extra);
   igraph_vector_null(&extra2);
  
-  int size1=igraph_vector_size(&dset)/2,size2,count=1;
-  if(size1)
-     {
-      size2=igraph_vector_size(&dset)-size1;
-      count=2;
-     }
-  else
-  size1++;
+  int size1=igraph_vector_size(&dset);
+  
 
   int from=0,to=size1;
 
- long int no_of_edges=igraph_ecount(graph);
+ 
  
  igraph_vector_init(&eids,no_of_edges);
  
@@ -384,59 +381,47 @@ int lower_bounding(igraph_t *graph,igraph_vector_t *lowerbound,igraph_t *gnew){
  igraph_vector_init(&tmp,no_of_edges);
  
  igraph_vector_init(&eid2,0);
- igraph_adjlist_t a;
-  
 
-  igraph_adjlist_init(graph,&a,IGRAPH_ALL);
+   
+   
+   
 
-  for(int i=0;i<count;i++){
-   
-   
-   //Rprintf("From is %d To is %d\n",from,to);
-   
    while(from<to){//handling internal edges along with creating partitions in extra1
     u=(long int)VECTOR(dset)[from];
     
+   if(!VECTOR(extra2)[u]){
      VECTOR(extra2)[u]=1;
-     neis=igraph_adjlist_get(&a,u);
-     num=igraph_vector_int_size(neis);
-     //igraph_neighbors(graph,&tmp,u,IGRAPH_ALL);
-      igraph_vector_push_back (&extra1,u);
-     for(long int s=0;s<num;s++){
-       if(!VECTOR(extra2)[VECTOR(*neis)[s]]){
-       igraph_vector_push_back (&extra1,(long int)VECTOR(*neis)[s]);
-       VECTOR(extra2)[(long int)VECTOR(*neis)[s]]=1;}
-     }
-    from++;
-    //igraph_vector_clear (&tmp);
-   }//partition created in extra1
+     IGRAPH_CHECK(igraph_neighbors(graph,&tmp,u,IGRAPH_ALL));
+     igraph_vector_push_back (&extra1,u);//extra1 for partition
 
-    
-   
+     for(long int s=0;s<igraph_vector_size(&tmp);s++){
+       igraph_vector_push_back (&extra1,(long int)VECTOR(tmp)[s]);
+       VECTOR(extra2)[(long int)VECTOR(tmp)[s]]=1;
+     }
+     
 
    for(long int s=0;s<igraph_vector_size(&extra1);s++)
    {
     u=(long int)VECTOR(extra1)[s];
     //Rprintf("u is %li\n",u);
     VECTOR(extra)[u]=1;
-    //igraph_neighbors(graph,&tmp,u,IGRAPH_ALL);
-      neis=igraph_adjlist_get(&a,u);
-     num=igraph_vector_int_size(neis);
-
-     for(long int t=0;t<num;t++)
+    igraph_neighbors(graph,&tmp,u,IGRAPH_ALL);
+     for(long int t=0;t<igraph_vector_size(&tmp);t++)
       { 
-       if(!(VECTOR(extra)[(long int)VECTOR(*neis)[t]]))
+       if(!(VECTOR(extra)[(long int)VECTOR(tmp)[t]]))
         {     
         //Rprintf("external neighbors of %li is %li\n",u,(long int)VECTOR(tmp)[t]);
         igraph_vector_push_back (&eid,u);
-        igraph_vector_push_back (&eid,(long int)VECTOR(*neis)[t]); 
+        igraph_vector_push_back (&eid,(long int)VECTOR(tmp)[t]); 
       }
       else
 	{
-        igraph_get_eid(graph,&e_id,(long int)VECTOR(*neis)[t],u,FALSE, TRUE);
+        
+        igraph_get_eid(graph,&e_id,(long int)VECTOR(tmp)[t],u,FALSE, TRUE);
           //Rprintf("eid %d\n",e_id);
           //VECTOR(edges)[e_id]=1;
           VECTOR(edges)[(long int)VECTOR(map)[e_id]]=1;
+        
       }   
    }
   
@@ -445,12 +430,12 @@ int lower_bounding(igraph_t *graph,igraph_vector_t *lowerbound,igraph_t *gnew){
   
   igraph_get_eids(graph,&eids,&eid,NULL,FALSE,FALSE); //take eids on basis of the recently constructed edge list from current partition 
 
-  
+ 
   
    //manage memory properly
   igraph_create(&g1,&eid,0,FALSE);    
    
- 
+  
      
      truss2(&g1,&truss);
         
@@ -466,17 +451,19 @@ int lower_bounding(igraph_t *graph,igraph_vector_t *lowerbound,igraph_t *gnew){
          if(VECTOR(*lowerbound)[(long int)VECTOR(map)[(long int)VECTOR(eids)[j]]]==2 && VECTOR(edges)[(long int)VECTOR(map)[(long int)VECTOR(eids)[j]]])
          VECTOR(edges)[(long int)VECTOR(map)[(long int)VECTOR(eids)[j]]]=2;
 
+        
         }
     
-    
+    }//if
+
     igraph_vector_clear (&eid);
    igraph_vector_clear (&extra1); 
    igraph_vector_null(&extra);
    igraph_destroy(&g1);
    igraph_vector_null(&extra2);
-   //from+=size1;
-   to+=size2;   
-  }//for main
+    from++;
+    igraph_vector_clear (&tmp);
+   }
   
  
    
@@ -507,7 +494,7 @@ int lower_bounding(igraph_t *graph,igraph_vector_t *lowerbound,igraph_t *gnew){
   if(igraph_vector_size(&eid2)==0)
     flag=0;
   
-  //Rprintf("\n%li %li\n",igraph_vector_size(&eid2),igraph_vector_size(&eid3)); 
+  Rprintf("\n%li %li\n",igraph_vector_size(&eid2),igraph_vector_size(&eid3)); 
   igraph_create(graph,&eid2,0,FALSE);
   igraph_vector_destroy(&extra2);
   igraph_vector_destroy(&extra);
@@ -517,6 +504,7 @@ int lower_bounding(igraph_t *graph,igraph_vector_t *lowerbound,igraph_t *gnew){
   igraph_vector_destroy(&eids);
   igraph_vector_destroy(&eid2);
   }//while
+
    igraph_destroy(&g1);
    IGRAPH_FINALLY_CLEAN(1);
 
@@ -547,10 +535,10 @@ int bottom_up_truss(igraph_t *graph,igraph_vector_t *truss){
   igraph_vector_init(truss,igraph_ecount(graph));
   //igraph_vector_init(&candidate,0);
   lower_bounding(graph,truss,&gnew);
-  /* igraph_transitivity_undirected(&gnew,&res, IGRAPH_TRANSITIVITY_ZERO);
+   /*igraph_transitivity_undirected(&gnew,&res, IGRAPH_TRANSITIVITY_ZERO);
     Rprintf("%f\n",res);*/
     igraph_destroy(&gnew);
-   
+  
  return 0;
 }
 
